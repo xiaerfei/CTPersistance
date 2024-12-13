@@ -12,6 +12,8 @@
 #import "CTPersistanceQueryCommand.h"
 #import "CTPersistanceQueryCommand+SchemaManipulations.h"
 
+static NSString * const kCTPersistanceVersionTableName = @"kCTPersistanceVersionTableName";
+
 @interface CTPersistanceVersionTable ()
 
 @property (nonatomic, weak) CTPersistanceDataBase *database;
@@ -83,10 +85,7 @@
 #pragma mark - getters and setters
 - (CTPersistanceQueryCommand *)queryCommand
 {
-    if (_queryCommand == nil) {
-        _queryCommand = [[CTPersistanceQueryCommand alloc] initWithDatabase:self.database];
-        [[_queryCommand createTable:[self.child tableName] columnInfo:[self.child columnInfo]] executeWithError:NULL];
-    }
+    _queryCommand = [[CTPersistanceQueryCommand alloc] initWithDatabase:self.database];
     return _queryCommand;
 }
 

@@ -10,7 +10,11 @@
 
 @interface CTPersistanceAsyncExecutor ()
 
-@property (nonatomic, strong) NSOperationQueue *operationQueue;
+#if OS_OBJECT_HAVE_OBJC_SUPPORT == 1
+@property (nonatomic, strong) dispatch_queue_t queue;
+#else
+@property (nonatomic, assign) dispatch_queue_t queue;
+#endif
 
 @end
 
@@ -27,29 +31,34 @@
     return executor;
 }
 
-- (void)performAsyncAction:(void (^)(void))action shouldWaitUntilDone:(BOOL)shouldWaitUntilDone
+- (instancetype)init
 {
-    __block volatile BOOL shouldWait = shouldWaitUntilDone;
-    
-    NSBlockOperation *operation = [NSBlockOperation blockOperationWithBlock:^{
-        action();
-        shouldWait = NO;
-    }];
-    
-    [self.operationQueue addOperation:operation];
-    
-    while (shouldWait) {
+    self = [super init];
+    if (self) {
+        self.queue = dispatch_queue_create("CTPersistanceAsyncThread", DISPATCH_QUEUE_CONCURRENT);
     }
+    return self;
 }
 
-#pragma mark - getters and setters
-- (NSOperationQueue *)operationQueue
+#pragma mark - public methods
+- (void)write:(void (^)(void))writeAction
 {
-    if (_operationQueue == nil) {
-        _operationQueue = [[NSOperationQueue alloc] init];
-        _operationQueue.maxConcurrentOperationCount = 1;
-    }
-    return _operationQueue;
+    dispatch_barrier_async(self.queue, ^{
+        writeAction();
+    });
+}
+
+- (void)read:(void (^)(void))readAction
+{
+    dispatch_async(self.queue, ^{
+        readAction();
+    });
+}
+
+- (void)syncRead:(void (^)(void))readAction {
+    dispatch_sync(self.queue, ^{
+        readAction();
+    });
 }
 
 @end

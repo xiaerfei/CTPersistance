@@ -54,16 +54,23 @@
 - (NSString *)primaryKeyName;
 
 @optional
+
 /**
- *  modify current database name.
+ *  column default value with this table.
+ *  suport base type: INTEGER、TEXT、REAL
+ *  For Example:
+
+ return return @{
+            @"defaultInt":@"0",
+            @"defaultStr":@"",
+            @"defaultBool":@"1"
+ };
+
+ This is mean defaultInt = 0、defaultStr = '' and defaultBool = 1
  *
- *  sometimes, especially when migration, the table will be create with CTPersistanceQueryCommand, and the database name of CTPersistanceQueryCommand is not match to this table, so query command will ask you to change database.
- *
- *  and in some other time, you have many databases, they share the same table. If you want your current table to work for the new database, you should modify the database name of this table.
- *
- *  @param newDatabaseName the new database name.
+ *  @return return the column default value of your table
  */
-- (void)modifyDatabaseName:(NSString *)newDatabaseName;
+-(NSDictionary *)columnDefaultValue;
 
 /**
  *  to check record before insert
@@ -86,7 +93,34 @@
  *  @return return the result of validation
  */
 - (BOOL)isCorrectToUpdateRecord:(NSObject <CTPersistanceRecordProtocol> *)record;
+
+
+/**
+ Provide index definition list when create the table in database, it is a list like:
+ 
+ @[
+    @{
+        kCTPersistanceTableIndexName:@"indexName1",
+        kCTPersistanceTableIndexedColumnList:@[@"column1",@"column2"],
+        kCTPersistanceTableIndexIsUniq:@(NO),
+    },
+ @{
+        kCTPersistanceTableIndexName:@"indexName2",
+        kCTPersistanceTableIndexedColumnList:@[@"column3"],
+        kCTPersistanceTableIndexIsUniq:@(YES),
+    }
+ ]
+ 
+ @return index definition list
+ */
+- (NSArray <NSDictionary *> *)indexList;
+
+- (NSString *)swiftModuleName;
 @end
+
+extern NSString * const kCTPersistanceTableIndexName;
+extern NSString * const kCTPersistanceTableIndexedColumnList;
+extern NSString * const kCTPersistanceTableIndexIsUniq;
 
 /**
  *  CTPersistanceTable is used to operate records.
@@ -100,6 +134,10 @@
  *  the child is just the same as self. just to make sure your own CTPersistance table is confirm to <CTPersistanceTableProtocol>
  */
 @property (nonatomic, weak, readonly) CTPersistanceTable <CTPersistanceTableProtocol> *child;
+@property (nonatomic, assign, readonly) BOOL isSwift;
+
+@property (nonatomic, assign, readonly) BOOL isFromMigration;
+@property (nonatomic, strong, readonly) CTPersistanceQueryCommand *queryCommand;
 
 /**
  *  execute sql in database of this table.
@@ -119,6 +157,15 @@
  *
  *  @return return NO if fails
  */
-- (NSArray *)fetchWithSQL:(NSString *)sqlString error:(NSError **)error;
+- (NSArray <NSDictionary *> *)fetchWithSQL:(NSString *)sqlString error:(NSError **)error;
+
+/**
+ *  used only in Migration
+ *
+ *  @param queryCommand queryCommand
+ *
+ *  @return return table
+ */
+- (instancetype)initWithQueryCommand:(CTPersistanceQueryCommand *)queryCommand;
 
 @end

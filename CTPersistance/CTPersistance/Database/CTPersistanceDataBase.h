@@ -7,7 +7,9 @@
 //
 
 #import <Foundation/Foundation.h>
-#import <sqlite3.h>
+#import <SQLCipher/sqlite3.h>
+
+extern NSString * const kCTPersistanceConfigurationParamsKeyDatabaseName;
 
 /**
  *  CTPersistanceDataBase is a wrapper of sqlite3 database
@@ -15,9 +17,9 @@
 @interface CTPersistanceDataBase : NSObject
 
 /**
- *  the database used for SQLite library
+ *  the database used for SQLite library,'sqlite3' pointer
  */
-@property (nonatomic, assign, readonly) sqlite3 *database;
+@property (nonatomic, unsafe_unretained, readonly) sqlite3 *database;
 
 /**
  *  name of database file.
@@ -43,7 +45,7 @@
  *
  *  @return return an instance of CTPersistanceDatabase
  */
-- (instancetype)initWithDatabaseName:(NSString *)databaseName error:(NSError **)error;
+- (instancetype)initWithDatabaseName:(NSString *)databaseName swiftModuleName:(NSString *)swiftModuleName error:(NSError **)error;
 
 /**
  *  close the database connection.

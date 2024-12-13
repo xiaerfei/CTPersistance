@@ -7,9 +7,13 @@
 //
 
 #import "CTPersistanceTable+Update.h"
+
 #import "CTPersistanceQueryCommand+DataManipulations.h"
 #import "CTPersistanceQueryCommand+SchemaManipulations.h"
-#import <UIKit/UIKit.h>
+
+#import "NSMutableArray+CTPersistanceBindValue.h"
+#import "NSDictionary+KeyValueBind.h"
+#import "NSString+Where.h"
 
 @implementation CTPersistanceTable (Update)
 
@@ -18,61 +22,191 @@
     [self updateKeyValueList:[record dictionaryRepresentationWithTable:self.child] primaryKeyValue:[record valueForKey:[self.child primaryKeyName]] error:error];
 }
 
-- (void)updateRecordList:(NSArray <NSObject <CTPersistanceRecordProtocol> *> *)recordList error:(NSError **)error
+- (void)updateRecordList:(NSArray <NSObject <CTPersistanceRecordProtocol> *> *)recordList error:(NSError * __autoreleasing *)error
 {
-    [recordList enumerateObjectsUsingBlock:^(NSObject <CTPersistanceRecordProtocol> * _Nonnull record, NSUInteger idx, BOOL * _Nonnull stop) {
+    for (id<CTPersistanceRecordProtocol> record in recordList) {
         [self updateRecord:record error:error];
-        if (*error) {
-            *stop = YES;
+
+        if (error != NULL && *error != nil) {
+            return;
         }
-    }];
+    }
 }
 
 - (void)updateValue:(id)value forKey:(NSString *)key whereCondition:(NSString *)whereCondition whereConditionParams:(NSDictionary *)whereConditionParams error:(NSError **)error
 {
-    if (key && value) {
+    if (key) {
         [self updateKeyValueList:@{key:value} whereCondition:whereCondition whereConditionParams:whereConditionParams error:error];
     }
 }
 
 - (void)updateKeyValueList:(NSDictionary *)keyValueList whereCondition:(NSString *)whereCondition whereConditionParams:(NSDictionary *)whereConditionParams error:(NSError **)error
 {
-    CTPersistanceQueryCommand *queryCommand = [[CTPersistanceQueryCommand alloc] initWithDatabaseName:[self.child databaseName]];
-    [[queryCommand updateTable:[self.child tableName] withData:keyValueList condition:whereCondition conditionParams:whereConditionParams] executeWithError:error];
+    @synchronized (self) {
+        NSMutableArray <NSInvocation *> *bindValueList = [[NSMutableArray alloc] init];
+
+        // default value setting
+        keyValueList = [self defaultValueProcessBeforeUpdate:keyValueList];
+        NSString *valueString = [keyValueList bindToUpdateValueList:bindValueList];
+        NSString *whereString = [whereCondition whereStringWithConditionParams:whereConditionParams bindValueList:bindValueList];
+
+        [[self.queryCommand updateTable:self.child.tableName valueString:valueString whereString:whereString bindValueList:bindValueList error:error] executeWithError:error];
+    }
 }
 
 - (void)updateValue:(id)value forKey:(NSString *)key primaryKeyValue:(NSNumber *)primaryKeyValue error:(NSError **)error
 {
-    if (key && value) {
-        NSString *whereCondition = [NSString stringWithFormat:@"%@ = :primaryKeyValue", [self.child primaryKeyName]];
-        NSDictionary *whereConditionParams = NSDictionaryOfVariableBindings(primaryKeyValue);
-        [self updateKeyValueList:@{key:value} whereCondition:whereCondition whereConditionParams:whereConditionParams error:error];
+    @synchronized (self) {
+        // default value setting
+        if (!value) {
+            value = [NSNull null];
+        }
+
+        if(self.child.columnDefaultValue && value == [NSNull null]  ) {
+            id defaultVale = [self.child.columnDefaultValue valueForKey:key];
+
+            if(defaultVale) {
+                value = defaultVale;
+            }
+        }
+
+        if (key && primaryKeyValue) {
+            NSMutableArray *bindValueArray = [[NSMutableArray alloc] init];
+
+            NSString *whereKey = [NSString stringWithFormat:@":CTPersistanceWhere_%@", self.child.primaryKeyName];
+            NSString *whereString = [NSString stringWithFormat:@"%@ = %@", self.child.primaryKeyName, whereKey];
+            [bindValueArray addBindKey:whereKey bindValue:primaryKeyValue];
+
+            NSString *valueKey = [NSString stringWithFormat:@":%@", key];
+
+            NSString *valueString = [NSString stringWithFormat:@"%@ = %@", key, valueKey];
+            [bindValueArray addBindKey:valueKey bindValue:value];
+
+            [[self.queryCommand updateTable:self.child.tableName valueString:valueString whereString:whereString bindValueList:bindValueArray error:error] executeWithError:error];
+        }
     }
 }
 
 - (void)updateValue:(id)value forKey:(NSString *)key primaryKeyValueList:(NSArray <NSNumber *> *)primaryKeyValueList error:(NSError **)error
 {
-    if (key && value) {
-        NSString *primaryKeyValueListString = [primaryKeyValueList componentsJoinedByString:@","];
-        NSString *whereCondition = [NSString stringWithFormat:@"%@ IN (:primaryKeyValueListString)", [self.child primaryKeyName]];
-        NSDictionary *whereConditionParams = NSDictionaryOfVariableBindings(primaryKeyValueListString);
-        [self updateKeyValueList:@{key:value} whereCondition:whereCondition whereConditionParams:whereConditionParams error:error];
+    if (key) {
+        [self updateValue:value forKey:key whereKey:self.child.primaryKeyName inList:primaryKeyValueList error:error];
+    }
+}
+
+- (void)updateValue:(id)value forKey:(NSString *)key whereKey:(NSString *)wherekey inList:(NSArray *)valueList error:(NSError *__autoreleasing *)error
+{
+    @synchronized (self) {
+        // default value setting
+        if (!value) {
+            value = [NSNull null];
+        }
+
+        if(self.child.columnDefaultValue && value == [NSNull null]  ) {
+            id defaultVale = [self.child.columnDefaultValue valueForKey:key];
+
+            if(defaultVale) {
+                value = defaultVale;
+            }
+        }
+
+        if (key && wherekey && valueList.count > 0) {
+            NSMutableArray *bindValueList = [[NSMutableArray alloc] init];
+
+            NSString *valueKey = [NSString stringWithFormat:@":%@", key];
+        
+            NSString *valueString = nil;
+            valueString = [NSString stringWithFormat:@"%@ = %@", key, valueKey];
+
+            [bindValueList addBindKey:valueKey bindValue:value];
+
+            NSMutableArray *valueKeyList = [[NSMutableArray alloc] init];
+            [valueList enumerateObjectsUsingBlock:^(id  _Nonnull value, NSUInteger idx, BOOL * _Nonnull stop) {
+                NSString *valueKey = [NSString stringWithFormat:@":CTPersistanceWhere%lu_", (unsigned long)idx];
+                [valueKeyList addObject:valueKey];
+                [bindValueList addBindKey:valueKey bindValue:value];
+            }];
+            NSString *whereString = [NSString stringWithFormat:@"%@ IN (%@)", wherekey, [valueKeyList componentsJoinedByString:@","]];
+
+            [[self.queryCommand updateTable:self.child.tableName valueString:valueString whereString:whereString bindValueList:bindValueList error:error] executeWithError:error];
+        }
     }
 }
 
 - (void)updateKeyValueList:(NSDictionary *)keyValueList primaryKeyValue:(NSNumber *)primaryKeyValue error:(NSError **)error
 {
-    NSString *whereCondition = [NSString stringWithFormat:@"%@ = :primaryKeyValue", [self.child primaryKeyName]];
-    NSDictionary *whereConditionParams = NSDictionaryOfVariableBindings(primaryKeyValue);
-    [self updateKeyValueList:keyValueList whereCondition:whereCondition whereConditionParams:whereConditionParams error:error];
+    @synchronized (self) {
+        if (primaryKeyValue == nil) {
+            return;
+        }
+
+        NSMutableArray *bindValueList = [[NSMutableArray alloc] init];
+
+        // default value setting
+        keyValueList = [self defaultValueProcessBeforeUpdate:keyValueList];
+        NSString *valueString = [keyValueList bindToUpdateValueList:bindValueList];
+
+        NSString *whereKey = [NSString stringWithFormat:@":CTPersistanceWhere_%@", self.child.primaryKeyName];
+        NSString *whereCondition = [NSString stringWithFormat:@"%@ = %@", self.child.primaryKeyName, whereKey];
+        [bindValueList addBindKey:whereKey bindValue:primaryKeyValue];
+
+        [[self.queryCommand updateTable:self.child.tableName valueString:valueString whereString:whereCondition bindValueList:bindValueList error:error] executeWithError:error];
+    }
 }
 
 - (void)updateKeyValueList:(NSDictionary *)keyValueList primaryKeyValueList:(NSArray <NSNumber *> *)primaryKeyValueList error:(NSError **)error
 {
-        NSString *primaryKeyValueListString = [primaryKeyValueList componentsJoinedByString:@","];
-        NSString *whereCondition = [NSString stringWithFormat:@"%@ IN (:primaryKeyValueListString)", [self.child primaryKeyName]];
-        NSDictionary *whereConditionParams = NSDictionaryOfVariableBindings(primaryKeyValueListString);
-    [self updateKeyValueList:keyValueList whereCondition:whereCondition whereConditionParams:whereConditionParams error:error];
+    @synchronized (self) {
+        NSMutableArray *bindValueList = [[NSMutableArray alloc] init];
+
+        keyValueList = [self defaultValueProcessBeforeUpdate:keyValueList];
+        NSString *valueString = [keyValueList bindToUpdateValueList:bindValueList];
+
+        NSMutableArray *valueKeyList = [[NSMutableArray alloc] init];
+        [primaryKeyValueList enumerateObjectsUsingBlock:^(id  _Nonnull value, NSUInteger idx, BOOL * _Nonnull stop) {
+            NSString *valueKey = [NSString stringWithFormat:@":CTPersistanceWhere%lu_", (unsigned long)idx];
+            [valueKeyList addObject:valueKey];
+            [bindValueList addBindKey:valueKey bindValue:value];
+        }];
+        NSString *whereString = [NSString stringWithFormat:@"%@ IN (%@)", self.child.primaryKeyName, [valueKeyList componentsJoinedByString:@","]];
+        
+        [[self.queryCommand updateTable:self.child.tableName valueString:valueString whereString:whereString bindValueList:bindValueList error:error] executeWithError:error];
+    }
+}
+
+- (NSDictionary *)defaultValueProcessBeforeUpdate:(NSDictionary *)keyValueList {
+    @synchronized (self) {
+        if(!self.child.columnDefaultValue) {
+            return keyValueList;
+        }
+
+        NSMutableDictionary *dictionaryRepresentation = [[NSMutableDictionary alloc] init];
+
+        [keyValueList enumerateKeysAndObjectsUsingBlock:^(NSString * _Nonnull columnName, NSString * _Nonnull columnDescription, BOOL * _Nonnull stop) {
+        
+            if(!keyValueList[columnName]) {
+                dictionaryRepresentation[columnName] = [NSNull null];
+            } else {
+                dictionaryRepresentation[columnName] = keyValueList[columnName];
+            }
+
+
+            if (dictionaryRepresentation[columnName] != [NSNull null]) {
+                return;
+            }
+
+            //setting default value
+            if(self.child.columnDefaultValue) {
+                id defaultValue = [self.child.columnDefaultValue valueForKey:columnName];
+
+                if(defaultValue) {
+                    dictionaryRepresentation[columnName] = defaultValue;
+                }
+            }
+        }];
+
+        return dictionaryRepresentation;
+    }
 }
 
 @end

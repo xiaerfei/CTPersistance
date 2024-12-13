@@ -7,95 +7,49 @@
 //
 
 #import "CTPersistanceQueryCommand+DataManipulations.h"
-
 #import "CTPersistanceMarcos.h"
-#import "NSString+SQL.h"
-#import "CTPersistanceQueryCommand+ReadMethods.h"
+#import "NSMutableArray+CTPersistanceBindValue.h"
+#import <SQLCipher/sqlite3.h>
 
 @implementation CTPersistanceQueryCommand (DataManipulations)
 
-- (CTPersistanceQueryCommand *)insertTable:(NSString *)tableName withDataList:(NSArray *)dataList
+- (CTPersistanceSqlStatement *)insertTable:(NSString *)tableName columnInfo:(NSDictionary *)columnInfo dataList:(NSArray *)dataList error:(NSError *__autoreleasing *)error
 {
-    [self resetQueryCommand];
-    
-    NSString *safeTableName = [tableName safeSQLMetaString];
-    if (CTPersistance_isEmptyString(safeTableName) || dataList == nil) {
-        return self;
+    if (CTPersistance_isEmptyString(tableName) || dataList == nil) {
+        return nil;
     }
-    
+
     NSMutableArray *valueItemList = [[NSMutableArray alloc] init];
-    __block NSString *columString = nil;
-    [dataList enumerateObjectsUsingBlock:^(NSDictionary * _Nonnull description, NSUInteger idx, BOOL * _Nonnull stop) {
-        NSMutableArray *columList = [[NSMutableArray alloc] init];
+    NSMutableArray *columnList = [[NSMutableArray alloc] init];
+    NSMutableArray <NSInvocation *> *bindValueList = [[NSMutableArray alloc] init];
+
+    [dataList enumerateObjectsUsingBlock:^(NSDictionary * _Nonnull recordData, NSUInteger idx, BOOL * _Nonnull stop) {
         NSMutableArray *valueList = [[NSMutableArray alloc] init];
-        
-        [description enumerateKeysAndObjectsUsingBlock:^(NSString * _Nonnull colum, NSString * _Nonnull value, BOOL * _Nonnull stop) {
-            [columList addObject:[NSString stringWithFormat:@"`%@`", [colum safeSQLMetaString]]];
-            if ([value isKindOfClass:[NSString class]]) {
-                [valueList addObject:[NSString stringWithFormat:@"'%@'", [value safeSQLEncode]]];
-            } else if ([value isKindOfClass:[NSNull class]]) {
-                [valueList addObject:@"NULL"];
-            } else {
-                [valueList addObject:[NSString stringWithFormat:@"'%@'", value]];
+        [recordData enumerateKeysAndObjectsUsingBlock:^(NSString * _Nonnull columnName, NSString * _Nonnull columnValue, BOOL * _Nonnull stop) {
+            if ([columnList containsObject:columnName] == NO) {
+                [columnList addObject:columnName];
             }
+            NSString *valueKey = [NSString stringWithFormat:@":%@%lu", columnName, (unsigned long)idx];
+            [valueList addObject:valueKey];
+            [bindValueList addBindKey:valueKey bindValue:columnValue];
         }];
-        
-        if (columString == nil) {
-            columString = [columList componentsJoinedByString:@","];
-        }
-        NSString *valueString = [valueList componentsJoinedByString:@","];
-        
-        [valueItemList addObject:[NSString stringWithFormat:@"(%@)", valueString]];
-    }];
-    
-    [self.sqlString appendFormat:@"INSERT INTO `%@` (%@) VALUES %@;", safeTableName, columString, [valueItemList componentsJoinedByString:@","]];
-    
-    return self;
-}
-
-- (CTPersistanceQueryCommand *)updateTable:(NSString *)tableName withData:(NSDictionary *)data condition:(NSString *)condition conditionParams:(NSDictionary *)conditionParams
-{
-    [self resetQueryCommand];
-    
-    NSString *safeTableName = [tableName safeSQLMetaString];
-    NSString *trimmedCondition = [condition safeSQLMetaString];
-    if (CTPersistance_isEmptyString(safeTableName) || CTPersistance_isEmptyString(trimmedCondition) || data == nil){
-        return self;
-    }
-
-    NSMutableArray *valueList = [[NSMutableArray alloc] init];
-
-    [data enumerateKeysAndObjectsUsingBlock:^(NSString * _Nonnull colum, NSString * _Nonnull value, BOOL * _Nonnull stop) {
-        if ([value isKindOfClass:[NSString class]]) {
-            [valueList addObject:[NSString stringWithFormat:@"`%@`='%@'", [colum safeSQLMetaString], [value safeSQLEncode]]];
-        } else if ([value isKindOfClass:[NSNull class]]) {
-            [valueList addObject:[NSString stringWithFormat:@"`%@`=NULL", [colum safeSQLMetaString]]];
-        } else {
-            [valueList addObject:[NSString stringWithFormat:@"`%@`=%@", [colum safeSQLMetaString], value]];
-        }
+        [valueItemList addObject:[NSString stringWithFormat:@"(%@)", [valueList componentsJoinedByString:@","]]];
     }];
 
-    NSString *valueString = [valueList componentsJoinedByString:@","];
-
-    [self.sqlString appendFormat:@"UPDATE `%@` SET %@ ", safeTableName, valueString];
-
-    return [self where:condition params:conditionParams];
+    NSString *sqlString = [NSString stringWithFormat:@"INSERT INTO `%@` (%@) VALUES %@;", tableName, [columnList componentsJoinedByString:@","], [valueItemList componentsJoinedByString:@","]];
+    return [self compileSqlString:sqlString bindValueList:bindValueList error:error];
 }
 
-- (CTPersistanceQueryCommand *)deleteTable:(NSString *)tableName withCondition:(NSString *)condition conditionParams:(NSDictionary *)conditionParams
+- (CTPersistanceSqlStatement *)updateTable:(NSString *)tableName valueString:(NSString *)valueString whereString:(NSString *)whereString bindValueList:(NSMutableArray <NSInvocation *> *)bindValueList error:(NSError * __autoreleasing *)error
 {
-    [self resetQueryCommand];
-    
-    NSString *safeTableName = [tableName safeSQLMetaString];
-    NSString *trimmedCondition = [condition safeSQLMetaString];
-    
-    if (CTPersistance_isEmptyString(safeTableName) || CTPersistance_isEmptyString(trimmedCondition)) {
-        return self;
-    }
-    
-    [self.sqlString appendFormat:@"DELETE FROM `%@` ", safeTableName];
-    
-    return [self where:trimmedCondition params:conditionParams];
+    NSString *sqlString = [NSString stringWithFormat:@"UPDATE `%@` SET %@ WHERE %@;", tableName, valueString, whereString];
+    return [self compileSqlString:sqlString bindValueList:bindValueList error:error];
+}
+
+- (CTPersistanceSqlStatement *)deleteTable:(NSString *)tableName whereString:(NSString *)whereString bindValueList:(NSMutableArray <NSInvocation *> *)bindValueList error:(NSError *__autoreleasing *)error
+{
+    NSString *sqlString = [NSString stringWithFormat:@"DELETE FROM `%@` WHERE %@", tableName, whereString];
+    return [self compileSqlString:sqlString bindValueList:bindValueList error:error];
 }
 
 @end

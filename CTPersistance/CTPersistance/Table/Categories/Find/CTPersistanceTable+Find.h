@@ -8,9 +8,17 @@
 
 #import "CTPersistanceTable.h"
 #import "CTPersistanceRecord.h"
-#import "CTPersistanceCriteria.h"
 
 @interface CTPersistanceTable (Find)
+
+/**
+ *  find all the record in the table
+ *
+ *  @param error error if find fails
+ *
+ *  @return return all the record.
+ */
+- (NSArray <NSObject<CTPersistanceRecordProtocol> *> *)findAllWithError:(NSError **)error;
 
 /**
  *  find the latest record
@@ -45,18 +53,6 @@
 - (NSArray <NSObject <CTPersistanceRecordProtocol> *> *)findAllWithSQL:(NSString *)sqlString params:(NSDictionary *)params error:(NSError **)error;
 
 /**
- *  find all record with criteria.
- *
- *  @param criteria criteria to find records
- *  @param error    error if fails
- *
- *  @return return the record list
- *
- *  @see CTPersistanceCriteria
- */
-- (NSArray <NSObject <CTPersistanceRecordProtocol> *> *)findAllWithCriteria:(CTPersistanceCriteria *)criteria error:(NSError **)error;
-
-/**
  *  find first row in record list with where condition.  @see - (void)deleteWithWhereCondition:(NSString *)whereCondition conditionParams:(NSDictionary *)conditionParams error:(NSError **)error: for how to use where condition. First row means the first record of fetched record list, not the first record in table.
  *
  *  @param condition       condition used in WHERE clause
@@ -82,22 +78,11 @@
 - (NSObject <CTPersistanceRecordProtocol> *)findFirstRowWithSQL:(NSString *)sqlString params:(NSDictionary *)params error:(NSError **)error;
 
 /**
- *  find first row with criteria.
- *
- *  @param criteria criteria to find records
- *  @param error    error if fails
- *
- *  @return return the first row
- *  @see CTPersistanceCriteria
- */
-- (NSObject <CTPersistanceRecordProtocol> *)findFirstRowWithCriteria:(CTPersistanceCriteria *)criteria error:(NSError **)error;
-
-/**
  *  return total record count in this table
  *
  *  @return return total record count in this table
  */
-- (NSNumber *)countTotalRecord;
+- (NSInteger)countTotalRecord;
 
 /**
  *  record count of record list with matches where condition. @see deleteWithWhereCondition:conditionParams:error: for how to use where condition.
@@ -108,18 +93,18 @@
  *
  *  @return return record count of record list with matches where condition.
  */
-- (NSNumber *)countWithWhereCondition:(NSString *)whereCondition conditionParams:(NSDictionary *)conditionParams error:(NSError **)error;
+- (NSInteger)countWithWhereCondition:(NSString *)whereCondition conditionParams:(NSDictionary *)conditionParams error:(NSError **)error;
 
 /**
  *  return count of record list by SQL. sqlString can be bind with params like where condition. @see deleteWithWhereCondition:conditionParams:error: for how to use where condition.
  *
- *  @param sqlString the sqlString to count
- *  @param params    the params to bind into sqlString
- *  @param error     error if fails
+ *  @param sqlString    the sqlString to count
+ *  @param params       the params to bind into sqlString
+ *  @param error        error if fails
  *
- *  @return return a dictionary which contains count column.
+ *  @return             return count as NSInteger.
  */
-- (NSDictionary *)countWithSQL:(NSString *)sqlString params:(NSDictionary *)params error:(NSError **)error;
+- (NSInteger)countWithSQL:(NSString *)sqlString params:(NSDictionary *)params error:(NSError **)error;
 
 /**
  *  find a record with primary key.
@@ -141,5 +126,27 @@
  */
 - (NSArray <NSObject <CTPersistanceRecordProtocol> *> *)findAllWithPrimaryKey:(NSArray <NSNumber *> *)primaryKeyValueList error:(NSError **)error;
 
+/**
+ *  find all keyname's value equal to value
+ *
+ *  @param keyname key name
+ *  @param value   value of key name
+ *  @param error   error if fails
+ *
+ *  @return return a list of record
+ */
+- (NSArray <NSObject <CTPersistanceRecordProtocol> *> *)findAllWithKeyName:(NSString *)keyname value:(id)value error:(NSError **)error;
+
+
+/**
+ *  find all keyname's value equal to value
+ *
+ *  @param keyname      key name
+ *  @param valueList    a list of value
+ *  @param error        error if fails
+ *
+ *  @return return a list of record
+ */
+- (NSArray <NSObject <CTPersistanceRecordProtocol> *> *)findAllWithKeyName:(NSString *)keyname inValueList:(NSArray *)valueList error:(NSError **)error;
 
 @end

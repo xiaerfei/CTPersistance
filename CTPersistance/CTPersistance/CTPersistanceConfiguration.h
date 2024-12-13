@@ -11,7 +11,7 @@
 
 #import <Foundation/Foundation.h>
 
-static NSString * kCTPersistanceErrorDomain = @"kCTPersistanceErrorDomain";
+static NSString * const kCTPersistanceErrorDomain = @"kCTPersistanceErrorDomain";
 
 /**
  *  error code in CTPersistance
@@ -43,14 +43,5 @@ typedef NS_ENUM(NSUInteger, CTPersistanceErrorCode){
     CTPersistanceErrorCodeFailedToSetKeyForValue,
 };
 
-static NSString * kCTPersistanceErrorUserinfoKeyErrorRecord = @"kCTPersistanceErrorUserinfoKeyErrorRecord";
-
-static NSString * kCTPersistanceVersionTableName = @"kCTPersistanceVersionTableName";
-static NSString * kCTPersistanceInitVersion = @"kCTPersistanceInitVersion";
-
-static NSInteger CTPersistanceNoLimit = -1;
-static NSInteger CTPersistanceNoOffset = -1;
-
-static NSString * kCTPersisatanceConfigurationFileName = @"CTPersistanceConfiguration";
 
 #endif /* CTPersistanceConfiguration_h */

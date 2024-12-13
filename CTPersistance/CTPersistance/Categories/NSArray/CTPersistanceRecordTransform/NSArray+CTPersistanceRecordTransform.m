@@ -7,10 +7,11 @@
 //
 
 #import "NSArray+CTPersistanceRecordTransform.h"
+#import <CTMediator/CTMediator.h>
 
 @implementation NSArray (CTPersistanceRecordTransform)
 
-- (NSArray *)transformSQLItemsToClass:(Class)classType
+- (NSArray *)transformSQLItemsToClass:(Class)classType isSwift:(BOOL)isSwift
 {
     NSMutableArray *recordList = [[NSMutableArray alloc] init];
     if ([self count] > 0) {

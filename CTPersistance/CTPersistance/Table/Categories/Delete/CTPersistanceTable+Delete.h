@@ -8,7 +8,6 @@
 
 #import "CTPersistanceTable.h"
 #import "CTPersistanceRecord.h"
-#import "CTPersistanceCriteria.h"
 
 @interface CTPersistanceTable (Delete)
 
@@ -48,25 +47,6 @@
 - (void)deleteWithWhereCondition:(NSString *)whereCondition conditionParams:(NSDictionary *)conditionParams error:(NSError **)error;
 
 /**
- *  delete with criteria
- *
- *  @param criteria the criteria for delete
- *  @param error    the error if delete fails
- *
- *  @see CTPersistanceCriteria
- */
-- (void)deleteWithCriteria:(CTPersistanceCriteria *)criteria error:(NSError **)error;
-
-/**
- *  delete with SQL string
- *
- *  @param sqlString the sqlString can be used as same as whereCondition to bind params, @see deleteWithWhereCondition:conditionParams:error:
- *  @param params    the params to bind into sqlString
- *  @param error     the error if delete fails
- */
-- (void)deleteWithSql:(NSString *)sqlString params:(NSDictionary *)params error:(NSError **)error;
-
-/**
  *  delete with parimary key
  *
  *  @param primaryKeyValue the primary key of record to be deleted
@@ -81,5 +61,13 @@
  *  @param error               the error if delete fails
  */
 - (void)deleteWithPrimaryKeyList:(NSArray <NSNumber *> *)primaryKeyValueList error:(NSError **)error;
+
+/**
+ *  delete a record in table where key = value
+ *  if key or value is nil, do nothing.
+ */
+- (void)deleteRecordWhereKey:(NSString *)key value:(id)value error:(NSError **)error;
+
+- (void)truncate;
 
 @end
